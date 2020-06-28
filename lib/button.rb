@@ -1,32 +1,35 @@
 class Button
   def initialize(definition, &handler)
     @props = definition
+    @colours = @props.slice(:line, :fill, :hover).transform_values { |c| hexcolour(c) }
+    @rect = @props.slice(:x, :y, :w, :h)
     @hover = false
     @event = handler
   end
 
-  def hexcolour(c)
-    raise ArgumentError unless c.start_with? '#'
-    color = c[1..-1]
-    output = case color.length
-    when 3 then color.chars.map { |c| c.to_i(16) * 0x11 }
-    when 6 then color.chars.each_cons(2).map { |c| c.join.to_i(16) }
-    else raise ArgumentError
+  def hexcolour(hex_string)
+    raise unless hex_string.start_with? '#'
+
+    hexes = hex_string[1..-1]
+
+    channels = case hexes.length
+    when 3, 4 then hexes.chars.map { |c| c.hex * 0x11 } + [0xff]
+    when 6, 8 then hexes.each_slice(2) { |a| a.join.hex } + [0xff]
+    else raise
     end
 
-    Hash[%i[r g b].zip(output)]
-  end
-
-  def rect
-    @props.select { |k,v| %i[x y w h].include? k }
+    # Possible extraneous channel is just ignored
+    Hash[%i[r g b a].zip(channels)]
+  rescue StandardError => e
+    raise ArgumentError, "Unable to decode colour #{hex_string} : #{e.message}"
   end
 
   def backdrop
-    rect.merge hexcolour(@hover ? @props[:hover] : @props[:fill])
+    @rect.merge @colours[@hover ? :hover : :fill]
   end
 
   def border
-    rect.merge hexcolour(@props[:line])
+    @rect.merge @colours[:line]
   end
 
   def label
